@@ -1,0 +1,29 @@
+# Dependencies and generated output
+**/node_modules/
+**/.next/
+**/out/
+**/build/
+**/coverage/
+**/*.tsbuildinfo
+**/next-env.d.ts
+
+# Local configuration and credentials
+**/.env
+**/.env.*
+!**/.env.example
+!**/.env.sample
+**/*.pem
+
+# Local tooling and editor files
+**/.agents/
+**/skills-lock.json
+**/.vercel/
+**/.DS_Store
+**/.idea/
+**/.vscode/
+
+# Package manager logs
+**/npm-debug.log*
+**/yarn-debug.log*
+**/yarn-error.log*
+**/.pnpm-debug.log*
