@@ -10,6 +10,7 @@ import {
   primaryKey,
   unique,
   index,
+  uniqueIndex,
   foreignKey,
   check,
 } from "drizzle-orm/pg-core";
@@ -21,6 +22,12 @@ import { sql } from "drizzle-orm";
 
 export const organizationRoleEnum = pgEnum("organization_role", [
   "owner",
+  "admin",
+  "member",
+  "viewer",
+]);
+
+export const invitationRoleEnum = pgEnum("invitation_role", [
   "admin",
   "member",
   "viewer",
@@ -52,6 +59,9 @@ export const taskPriorityEnum = pgEnum("task_priority", [
 
 export const users = pgTable("users", {
   id: uuid("id").defaultRandom().primaryKey(),
+
+  // External identity provided by Clerk
+  clerkUserId: text("clerk_user_id").notNull().unique(),
 
   email: text("email").notNull().unique(),
 
@@ -150,7 +160,7 @@ export const invitations = pgTable(
 
     email: text("email").notNull(),
 
-    role: organizationRoleEnum("role").notNull().default("member"),
+    role: invitationRoleEnum("role").notNull().default("member"),
 
     tokenHash: text("token_hash").notNull().unique(),
 
@@ -169,10 +179,17 @@ export const invitations = pgTable(
     createdAt: timestamp("created_at", {
       withTimezone: true,
     }).notNull().defaultNow(),
+
   },
   (table) => [
     index("invitations_organization_idx").on(table.organizationId),
     index("invitations_email_idx").on(table.email),
+    uniqueIndex("invitations_pending_org_email_unique")
+  .on(
+    table.organizationId,
+    sql`lower(${table.email})`,
+  )
+  .where(sql`${table.acceptedAt} IS NULL`),
   ],
 );
 

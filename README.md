@@ -1,8 +1,6 @@
 # Teamflow
 
-Teamflow is a web application starter for collaborative project and task management. The repository currently contains a Next.js application scaffold, Clerk authentication entry points, and a PostgreSQL data model for organizations, memberships, invitations, projects, and tasks.
-
-> The current home page is still the stock Next.js starter screen. The database schema describes the intended collaboration domain; a complete project-management UI and the workflows that use this schema have not yet been implemented.
+Teamflow is a collaborative project and task management application built with Next.js. The current implementation includes Clerk authentication, organization and membership management, role-based organization permissions, and email-based organization invitations. The database schema also defines projects and tasks.
 
 ## Repository layout
 
@@ -10,34 +8,32 @@ Teamflow is a web application starter for collaborative project and task managem
 .
 ├── README.md
 └── apps/
-    └── web/                 # Next.js web application
-        ├── drizzle/         # PostgreSQL migration history
-        ├── public/          # Static assets
+    └── web/                     # Next.js web application
+        ├── drizzle/             # PostgreSQL schema migrations
         └── src/
-            ├── app/         # App Router pages and global styles
-            ├── lib/db/      # Drizzle schema and Neon connection
-            └── proxy.ts     # Clerk middleware
+            ├── app/             # App Router pages and API routes
+            └── lib/             # Authentication, database, invitation, and organization logic
 ```
 
 ## Technology
 
-- Next.js 16 with the App Router and React 19
-- TypeScript
-- Tailwind CSS 4
-- Clerk for authentication
+- Next.js 16 App Router and React 19
+- TypeScript and Tailwind CSS 4
+- Clerk authentication
 - Drizzle ORM and Drizzle Kit
 - Neon serverless PostgreSQL
+- Vitest for unit and route tests
 
 ## Prerequisites
 
-- Node.js compatible with the Next.js version in `apps/web/package.json`
+- Node.js compatible with the version required by `apps/web/package.json`
 - npm
-- A Clerk application for authentication
-- A Neon PostgreSQL database for database operations
+- A Clerk application
+- A Neon PostgreSQL database
 
 ## Getting started
 
-1. Clone the repository and move into the web application directory:
+1. Clone the repository and enter the web application directory:
 
    ```bash
    git clone https://github.com/Boluski2/teamflow.git
@@ -50,7 +46,7 @@ Teamflow is a web application starter for collaborative project and task managem
    npm install
    ```
 
-3. Create `apps/web/.env.local` and add the values for your Clerk application and Neon database:
+3. Create `apps/web/.env.local` with the Clerk and database credentials:
 
    ```dotenv
    NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_...
@@ -58,15 +54,38 @@ Teamflow is a web application starter for collaborative project and task managem
    DATABASE_URL=postgresql://USER:PASSWORD@HOST/DATABASE?sslmode=require
    ```
 
-   Keep real credentials private. Environment files are ignored by Git. Clerk keys are needed for the authentication integration; `DATABASE_URL` is required by the Drizzle database client and migration commands.
+   Keep real credentials private. Environment files are ignored by Git. `DATABASE_URL` is required for database access and migrations.
 
-4. Start the development server:
+4. Apply the checked-in migrations:
+
+   ```bash
+   npm run db:migrate
+   ```
+
+5. Start the development server:
 
    ```bash
    npm run dev
    ```
 
-5. Open [http://localhost:3000](http://localhost:3000).
+6. Open [http://localhost:3000](http://localhost:3000).
+
+## API routes
+
+All routes require a valid authenticated user unless noted otherwise. The server synchronizes the Clerk identity with the Teamflow user record before organization and invitation operations.
+
+| Method | Route | Purpose |
+| --- | --- | --- |
+| `GET` | `/api/me` | Return the current authenticated user. |
+| `GET` | `/api/organizations` | List organizations the current user belongs to. |
+| `POST` | `/api/organizations` | Create an organization and its owner membership. |
+| `GET` | `/api/organizations/:organizationId` | Return organization details for a member. |
+| `PATCH` | `/api/organizations/:organizationId` | Update organization name or description; requires the `organization.update` permission. |
+| `GET` | `/api/organizations/:organizationId/invitations` | List invitations for an organization. |
+| `POST` | `/api/organizations/:organizationId/invitations` | Create an invitation; requires the appropriate organization permission. |
+| `POST` | `/api/invitations/accept` | Accept an invitation using the authenticated user’s verified email. |
+
+Organization membership roles are `owner`, `admin`, `member`, and `viewer`. Invitation roles are `admin`, `member`, and `viewer`. Invitation tokens are stored as hashes, expire, and can be accepted only once by a matching email address.
 
 ## Available commands
 
@@ -78,53 +97,37 @@ Run these from `apps/web`:
 | `npm run build` | Create a production build. |
 | `npm run start` | Serve the production build. |
 | `npm run lint` | Run ESLint. |
+| `npm test` | Run unit and API route tests. |
+| `npm run test:watch` | Run Vitest in watch mode. |
+| `npx vitest run --config vitest.integration.config.ts` | Run Neon-backed integration tests. |
 | `npm run db:generate` | Generate SQL migrations from the Drizzle schema. |
 | `npm run db:migrate` | Apply migrations to the configured database. |
 | `npm run db:studio` | Open Drizzle Studio for the configured database. |
 
-## Authentication routes
+Integration tests load `.env.local` and use the configured `DATABASE_URL`. Run them against a development or test database; they create and clean up fixture records.
 
-Clerk is provided to the application from the root layout, and the Clerk middleware is configured in `src/proxy.ts`. The current authentication pages are:
+## Data model and migrations
 
-- `/sign-in`
-- `/sign-up`
+The Drizzle schema is in `apps/web/src/lib/db/schema.ts`; SQL migrations are in `apps/web/drizzle/`. The schema covers users, organizations, memberships, invitations, projects, and tasks. Foreign keys and indexes enforce organization/project relationships and membership-based task assignment. Task statuses are `todo`, `in_progress`, `in_review`, `done`, and `cancelled`; priorities are `low`, `normal`, `high`, and `urgent`.
 
-Configure the Clerk application’s local development keys in `.env.local` before using these routes. Add the matching production environment variables in your deployment platform when deploying.
-
-## Data model
-
-The Drizzle schema is in `apps/web/src/lib/db/schema.ts`; generated PostgreSQL migrations are in `apps/web/drizzle/`.
-
-- **Users** store email, name, avatar URL, and active state.
-- **Organizations** belong to a creator and have a unique slug.
-- **Memberships** associate users with organizations and assign `owner`, `admin`, `member`, or `viewer` roles.
-- **Invitations** record an organization, invitee email, role, token hash, expiration, and acceptance time.
-- **Projects** belong to organizations and can be active or archived.
-- **Tasks** belong to projects and support parent tasks, assignees, due dates, ordering, status, priority, and completion time.
-
-Task statuses are `todo`, `in_progress`, `in_review`, `done`, and `cancelled`; priorities are `low`, `normal`, `high`, and `urgent`. Foreign keys and indexes encode organization/project relationships and membership-based task assignment.
-
-### Database workflow
-
-Set `DATABASE_URL` in `.env.local`, then run the commands from `apps/web`:
+To change the schema, update the Drizzle definitions and generate a migration from `apps/web`:
 
 ```bash
 npm run db:generate
-npm run db:migrate
 ```
 
-Use `npm run db:studio` to inspect the configured database. Review generated SQL before applying schema changes to a shared or production database.
+Review generated SQL before applying schema changes to a shared or production database.
 
-## Deployment
+## Authentication and deployment
 
-Deploy the Next.js app from the `apps/web` directory using a platform that supports Next.js. Configure the Clerk keys and `DATABASE_URL` as environment variables in that platform. Apply the checked-in Drizzle migrations to the target PostgreSQL database as part of deployment preparation.
+The application uses Clerk authentication. The sign-in and sign-up pages are available at `/sign-in` and `/sign-up`. Configure the local Clerk keys in `.env.local` and set the same values as environment variables in the deployment platform. Deploy the Next.js app from `apps/web`, and apply the checked-in Drizzle migrations to the target PostgreSQL database as part of deployment preparation.
 
 ## Contributing
 
 1. Create a branch for your change.
-2. Install dependencies in `apps/web` and make the change.
-3. Run `npm run lint` and, for production-facing changes, `npm run build` from `apps/web`.
-4. Open a pull request describing the change and any environment or database migration requirements.
+2. Install dependencies from `apps/web` and make the change.
+3. Run `npm run lint`, `npm test`, and, for production-facing changes, `npm run build` from `apps/web`.
+4. Open a pull request describing the change and any environment or migration requirements.
 
 ## License
 

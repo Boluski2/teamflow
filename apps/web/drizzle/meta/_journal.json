@@ -15,6 +15,20 @@
       "when": 1793808600017,
       "tag": "0001_sharp_captain_stacy",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1793830707807,
+      "tag": "0002_motionless_rick_jones",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1793960014661,
+      "tag": "0003_fearless_pepper_potts",
+      "breakpoints": true
     }
   ]
 }
