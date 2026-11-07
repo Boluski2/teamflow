@@ -22,11 +22,12 @@ Teamflow is a collaborative project and task management application built with N
 - Clerk authentication
 - Drizzle ORM and Drizzle Kit
 - Neon serverless PostgreSQL
+- Resend and React Email dependencies for transactional email
 - Vitest for unit and route tests
 
 ## Prerequisites
 
-- Node.js compatible with the version required by `apps/web/package.json`
+- Node.js 22.12 or newer (required by the current Vitest version)
 - npm
 - A Clerk application
 - A Neon PostgreSQL database
@@ -40,7 +41,7 @@ Teamflow is a collaborative project and task management application built with N
    cd teamflow/apps/web
    ```
 
-2. Install dependencies:
+2. Install dependencies (including the Resend and React Email packages):
 
    ```bash
    npm install
