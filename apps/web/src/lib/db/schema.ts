@@ -53,6 +53,11 @@ export const taskPriorityEnum = pgEnum("task_priority", [
   "urgent",
 ]);
 
+export const invitationEmailStatusEnum = pgEnum(
+  "invitation_email_status",
+  ["pending", "sending", "sent", "failed"],
+);
+
 // ---------------------------------------------
 // USERS
 // ---------------------------------------------
@@ -174,6 +179,26 @@ export const invitations = pgTable(
 
     acceptedAt: timestamp("accepted_at", {
       withTimezone: true,
+    }),
+
+    emailStatus: invitationEmailStatusEnum("email_status")
+      .notNull()
+      .default("pending"),
+
+    emailSentAt: timestamp("email_sent_at", {
+      withTimezone: true,
+      mode: "date",
+    }),
+
+    emailProviderId: text("email_provider_id"),
+
+    emailAttemptCount: integer("email_attempt_count")
+      .notNull()
+      .default(0),
+
+    emailLastAttemptAt: timestamp("email_last_attempt_at", {
+      withTimezone: true,
+      mode: "date",
     }),
 
     createdAt: timestamp("created_at", {

@@ -22,7 +22,7 @@ Teamflow is a collaborative project and task management application built with N
 - Clerk authentication
 - Drizzle ORM and Drizzle Kit
 - Neon serverless PostgreSQL
-- Resend and React Email dependencies for transactional email
+- Resend and React Email for invitation email rendering and delivery
 - Vitest for unit and route tests
 
 ## Prerequisites
@@ -57,19 +57,29 @@ Teamflow is a collaborative project and task management application built with N
 
    Keep real credentials private. Environment files are ignored by Git. `DATABASE_URL` is required for database access and migrations.
 
-4. Apply the checked-in migrations:
+4. To configure the invitation email sender, also add the Resend API key, a verified sender address, and the public application URL:
+
+   ```dotenv
+   RESEND_API_KEY=re_...
+   RESEND_FROM_EMAIL=TeamFlow <invitations@example.com>
+   APP_URL=http://localhost:3000
+   ```
+
+   These values are read by the invitation email helper. The invitation API currently creates invitations without invoking email delivery.
+
+5. Apply the checked-in migrations:
 
    ```bash
    npm run db:migrate
    ```
 
-5. Start the development server:
+6. Start the development server:
 
    ```bash
    npm run dev
    ```
 
-6. Open [http://localhost:3000](http://localhost:3000).
+7. Open [http://localhost:3000](http://localhost:3000).
 
 ## API routes
 
@@ -86,7 +96,7 @@ All routes require a valid authenticated user unless noted otherwise. The server
 | `POST` | `/api/organizations/:organizationId/invitations` | Create an invitation; requires the appropriate organization permission. |
 | `POST` | `/api/invitations/accept` | Accept an invitation using the authenticated user’s verified email. |
 
-Organization membership roles are `owner`, `admin`, `member`, and `viewer`. Invitation roles are `admin`, `member`, and `viewer`. Invitation tokens are stored as hashes, expire, and can be accepted only once by a matching email address.
+Organization membership roles are `owner`, `admin`, `member`, and `viewer`. Invitation roles are `admin`, `member`, and `viewer`. Invitation tokens are stored as hashes, expire, and can be accepted only once by a matching email address. Invitation records also track email status, provider ID, delivery time, and attempt metadata.
 
 ## Available commands
 
