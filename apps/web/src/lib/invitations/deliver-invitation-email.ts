@@ -1,12 +1,11 @@
-import "server-only";
 
-import { sendInvitationEmail } from "@/lib/email/send-invitation-email";
+import "server-only";
 
 import { claimInvitationEmail } from "./claim-invitation-email";
 import {
-  markInvitationEmailFailed,
-  markInvitationEmailSent,
-} from "./update-invitation-email";
+  deliverClaimedInvitationEmail,
+  type ClaimedInvitationEmailResult,
+} from "./deliver-claimed-invitation-email";
 
 type DeliverInvitationEmailInput = {
   invitationId: string;
@@ -19,15 +18,7 @@ export type DeliverInvitationEmailResult =
   | {
       status: "not_claimed";
     }
-  | {
-      status: "failed";
-      reason: "configuration" | "provider" | "unexpected";
-    }
-  | {
-      status: "sent";
-      emailId: string;
-      recorded: boolean;
-    };
+  | ClaimedInvitationEmailResult;
 
 export async function deliverInvitationEmail(
   input: DeliverInvitationEmailInput,
@@ -40,37 +31,13 @@ export async function deliverInvitationEmail(
     return { status: "not_claimed" };
   }
 
-  const { invitation, attemptStartedAt } = claim;
-
-  const delivery = await sendInvitationEmail({
-    email: invitation.email,
+  return deliverClaimedInvitationEmail({
+    invitationId: claim.invitation.id,
+    email: claim.invitation.email,
+    role: claim.invitation.role,
+    token: input.token,
+    attemptStartedAt: claim.attemptStartedAt,
     inviterName: input.inviterName,
     organizationName: input.organizationName,
-    role: invitation.role,
-    token: input.token,
   });
-
-  if (!delivery.success) {
-    await markInvitationEmailFailed({
-      invitationId: invitation.id,
-      attemptStartedAt,
-    });
-
-    return {
-      status: "failed",
-      reason: delivery.reason,
-    };
-  }
-
-  const recorded = await markInvitationEmailSent({
-    invitationId: invitation.id,
-    attemptStartedAt,
-    emailProviderId: delivery.emailId,
-  });
-
-  return {
-    status: "sent",
-    emailId: delivery.emailId,
-    recorded,
-  };
 }

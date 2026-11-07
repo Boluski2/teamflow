@@ -94,6 +94,7 @@ All routes require a valid authenticated user unless noted otherwise. The server
 | `PATCH` | `/api/organizations/:organizationId` | Update organization name or description; requires the `organization.update` permission. |
 | `GET` | `/api/organizations/:organizationId/invitations` | List invitations for an organization. |
 | `POST` | `/api/organizations/:organizationId/invitations` | Create an invitation and attempt to email it; requires the appropriate organization permission. Returns delivery status while keeping the raw token private. |
+| `POST` | `/api/organizations/:organizationId/invitations/:invitationId/resend` | Renew an unaccepted invitation and send a fresh email; rotates its token and seven-day expiry. An active delivery attempt returns a conflict. |
 | `POST` | `/api/invitations/accept` | Accept an invitation using the authenticated user’s verified email. |
 
 Organization membership roles are `owner`, `admin`, `member`, and `viewer`. Invitation roles are `admin`, `member`, and `viewer`. Invitation tokens are stored as hashes, expire, and can be accepted only once by a matching email address. Invitation records also track email status, provider ID, delivery time, and attempt metadata. Delivery claims are atomic; a `sending` attempt can be reclaimed after five minutes if it becomes stale.

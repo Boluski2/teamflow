@@ -35,7 +35,9 @@ export async function GET() {
       }
     }
 
-    console.error("TeamFlow user synchronization failed");
+    console.error("TeamFlow user synchronization failed", {
+  errorName: error instanceof Error ? error.name : "UnknownError",
+});
 
     return NextResponse.json(
       { success: false, message: "Internal server error" },
