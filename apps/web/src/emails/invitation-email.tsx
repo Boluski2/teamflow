@@ -46,7 +46,7 @@ export default function InvitationEmail({
 
           <Section style={styles.content}>
             <Heading as="h1" style={styles.heading}>
-              You're invited to collaborate
+              You&apos;re invited to collaborate
             </Heading>
 
             <Text style={styles.paragraph}>
@@ -55,7 +55,7 @@ export default function InvitationEmail({
             </Text>
 
             <Text style={styles.paragraph}>
-              You'll join the organization as {roleDescriptions[role]}.
+              You&apos;ll join the organization as {roleDescriptions[role]}.
             </Text>
 
             <Section style={styles.buttonSection}>
@@ -71,12 +71,12 @@ export default function InvitationEmail({
             <Hr style={styles.divider} />
 
             <Text style={styles.helpText}>
-              If you weren't expecting this invitation, you can safely
+              If you weren&apos;t expecting this invitation, you can safely
               ignore this email.
             </Text>
 
             <Text style={styles.helpText}>
-              If the button doesn't work, copy and paste this link into
+              If the button doesn&apos;t work, copy and paste this link into
               your browser:
             </Text>
 

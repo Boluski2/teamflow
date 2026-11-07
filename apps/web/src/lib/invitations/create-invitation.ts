@@ -128,7 +128,14 @@ export async function createInvitation({
     // Reuse an expired, unaccepted invitation if one exists.
     const [updatedInvitation] = await db
       .update(invitations)
-      .set(invitationFields)
+      .set({
+        ...invitationFields,
+        emailStatus: "pending",
+        emailSentAt: null,
+        emailProviderId: null,
+        emailAttemptCount: 0,
+        emailLastAttemptAt: null,
+      })
       .where(
         and(
           eq(invitations.organizationId, organizationId),

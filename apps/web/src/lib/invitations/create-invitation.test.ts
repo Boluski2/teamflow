@@ -15,11 +15,10 @@ vi.mock("@/lib/db", () => ({
 
 import {
   createInvitation,
-  InvitationServiceError,
 } from "./create-invitation";
 
 function createSelectQuery(result: unknown[]) {
-  const query: any = {
+  const query = {
     from: vi.fn(),
     innerJoin: vi.fn(),
     where: vi.fn(),
@@ -34,7 +33,7 @@ function createSelectQuery(result: unknown[]) {
 }
 
 function createUpdateQuery(result: unknown[]) {
-  const query: any = {
+  const query = {
     set: vi.fn(),
     where: vi.fn(),
     returning: vi.fn().mockResolvedValue(result),
@@ -47,7 +46,7 @@ function createUpdateQuery(result: unknown[]) {
 }
 
 function createInsertQuery(result: unknown[]) {
-  const query: any = {
+  const query = {
     values: vi.fn(),
     returning: vi.fn().mockResolvedValue(result),
   };

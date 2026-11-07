@@ -65,7 +65,7 @@ Teamflow is a collaborative project and task management application built with N
    APP_URL=http://localhost:3000
    ```
 
-   These values are read by the invitation email helper. The invitation API currently creates invitations without invoking email delivery.
+   The invitation API sends email through Resend. If delivery fails because configuration or the provider is unavailable, the invitation is still created and the API response reports the delivery status.
 
 5. Apply the checked-in migrations:
 
@@ -93,10 +93,10 @@ All routes require a valid authenticated user unless noted otherwise. The server
 | `GET` | `/api/organizations/:organizationId` | Return organization details for a member. |
 | `PATCH` | `/api/organizations/:organizationId` | Update organization name or description; requires the `organization.update` permission. |
 | `GET` | `/api/organizations/:organizationId/invitations` | List invitations for an organization. |
-| `POST` | `/api/organizations/:organizationId/invitations` | Create an invitation; requires the appropriate organization permission. |
+| `POST` | `/api/organizations/:organizationId/invitations` | Create an invitation and attempt to email it; requires the appropriate organization permission. Returns delivery status while keeping the raw token private. |
 | `POST` | `/api/invitations/accept` | Accept an invitation using the authenticated user’s verified email. |
 
-Organization membership roles are `owner`, `admin`, `member`, and `viewer`. Invitation roles are `admin`, `member`, and `viewer`. Invitation tokens are stored as hashes, expire, and can be accepted only once by a matching email address. Invitation records also track email status, provider ID, delivery time, and attempt metadata.
+Organization membership roles are `owner`, `admin`, `member`, and `viewer`. Invitation roles are `admin`, `member`, and `viewer`. Invitation tokens are stored as hashes, expire, and can be accepted only once by a matching email address. Invitation records also track email status, provider ID, delivery time, and attempt metadata. Delivery claims are atomic; a `sending` attempt can be reclaimed after five minutes if it becomes stale.
 
 ## Available commands
 

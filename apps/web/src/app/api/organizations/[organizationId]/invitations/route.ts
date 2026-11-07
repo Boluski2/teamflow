@@ -12,6 +12,7 @@ import {
   InvitationServiceError,
 } from "@/lib/invitations/create-invitation";
 import { createInvitationSchema } from "@/lib/invitations/schema";
+import { deliverInvitationEmail } from "@/lib/invitations/deliver-invitation-email";
 
 type RouteContext = {
   params: Promise<{
@@ -41,7 +42,7 @@ export async function POST(
       );
     }
 
-    // 3. Verify the requester has invitation permission.
+    // 3. Verify invitation permission and retrieve organization details.
     const organization = await requireOrganizationPermission(
       parsedId.data,
       user.id,
@@ -63,7 +64,7 @@ export async function POST(
       );
     }
 
-    // 5. Validate and normalize the invitation details.
+    // 5. Validate and normalize invitation details.
     const validation = createInvitationSchema.safeParse(body);
 
     if (!validation.success) {
@@ -86,13 +87,39 @@ export async function POST(
       role: validation.data.role,
     });
 
-    // 7. Return only safe invitation information.
-    // Never expose the raw token or stored token hash.
+    // 7. Attempt email delivery.
+    const delivery = await deliverInvitationEmail({
+      invitationId: result.invitation.id,
+      token: result.token,
+      inviterName: user.name,
+      organizationName: organization.name,
+    });
+
+    // 8. Return safe invitation and delivery information.
+    const emailDeliveryStatus =
+      delivery.status === "sent"
+        ? delivery.recorded
+          ? "sent"
+          : "unconfirmed"
+        : delivery.status;
+
+    const message =
+      delivery.status === "sent"
+        ? delivery.recorded
+          ? "Invitation created and email sent successfully"
+          : "Invitation created, but email delivery status could not be saved"
+        : delivery.status === "failed"
+          ? "Invitation created, but email delivery failed"
+          : "Invitation created, but email delivery was not started";
+
     return NextResponse.json(
       {
         success: true,
-        message: "Invitation created successfully",
+        message,
         invitation: result.invitation,
+        emailDelivery: {
+          status: emailDeliveryStatus,
+        },
       },
       { status: 201 },
     );
@@ -156,12 +183,12 @@ export async function POST(
       );
     }
 
-    console.error("Invitation creation failed");
+    console.error("Invitation creation or email delivery failed");
 
     return NextResponse.json(
       {
         success: false,
-        message: "Unable to create invitation",
+        message: "Unable to complete invitation request",
       },
       { status: 500 },
     );

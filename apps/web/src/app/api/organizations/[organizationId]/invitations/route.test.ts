@@ -1,17 +1,11 @@
 
-import {
-  afterEach,
-  beforeEach,
-  describe,
-  expect,
-  it,
-  vi,
-} from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   ensureUser: vi.fn(),
   requireOrganizationPermission: vi.fn(),
   createInvitation: vi.fn(),
+  deliverInvitationEmail: vi.fn(),
 }));
 
 vi.mock("server-only", () => ({}));
@@ -19,6 +13,11 @@ vi.mock("server-only", () => ({}));
 vi.mock("@/lib/auth/ensure-user", () => ({
   ensureUser: mocks.ensureUser,
 }));
+
+vi.mock("@/lib/invitations/deliver-invitation-email", () => ({
+  deliverInvitationEmail: mocks.deliverInvitationEmail,
+}));
+
 
 vi.mock("@/lib/organizations/authorization", () => ({
   OrganizationAccessError: class OrganizationAccessError extends Error {
@@ -62,10 +61,12 @@ const user = {
 
 const organization = {
   id: "2508cbcc-c873-46c2-8fc9-148f378f2def",
+  name: "TeamFlow Workspace",
   role: "owner",
 };
 
 const organizationId = organization.id;
+
 
 const invitation = {
   id: "f4d8babc-2f73-4b6e-8e3a-5c2a6a9f1234",
@@ -115,6 +116,12 @@ describe("POST /api/organizations/[organizationId]/invitations", () => {
       invitation,
       token: rawToken,
     });
+
+    mocks.deliverInvitationEmail.mockResolvedValue({
+  status: "sent",
+  emailId: "resend-email-123",
+  recorded: true,
+});
   });
 
   it("creates an invitation for an authorized organization owner", async () => {
@@ -130,6 +137,7 @@ describe("POST /api/organizations/[organizationId]/invitations", () => {
 
     expect(response.status).toBe(201);
     expect(body.success).toBe(true);
+    expect(body.emailDelivery.status).toBe("sent");
     expect(body.invitation.email).toBe("newmember@example.com");
     expect(body.invitation.role).toBe("member");
 
@@ -148,6 +156,79 @@ describe("POST /api/organizations/[organizationId]/invitations", () => {
       email: "newmember@example.com",
       role: "member",
     });
+
+    expect(mocks.deliverInvitationEmail).toHaveBeenCalledWith({
+      invitationId: invitation.id,
+      token: rawToken,
+      inviterName: user.name,
+      organizationName: organization.name,
+    });
+  });
+
+  it("returns 201 when invitation is created but email delivery fails", async () => {
+    mocks.deliverInvitationEmail.mockResolvedValue({
+      status: "failed",
+      reason: "provider",
+    });
+
+    const response = await POST(
+      createPostRequest({
+        email: "newmember@example.com",
+        role: "member",
+      }),
+      createContext(organizationId),
+    );
+
+    const body = await response.json();
+
+    expect(response.status).toBe(201);
+    expect(body.success).toBe(true);
+    expect(body.emailDelivery.status).toBe("failed");
+    expect(body.message).toBe(
+      "Invitation created, but email delivery failed",
+    );
+  });
+
+  it("returns not_claimed when email delivery cannot claim the invitation", async () => {
+    mocks.deliverInvitationEmail.mockResolvedValue({
+      status: "not_claimed",
+    });
+
+    const response = await POST(
+      createPostRequest({
+        email: "newmember@example.com",
+        role: "member",
+      }),
+      createContext(organizationId),
+    );
+
+    const body = await response.json();
+
+    expect(response.status).toBe(201);
+    expect(body.success).toBe(true);
+    expect(body.emailDelivery.status).toBe("not_claimed");
+  });
+
+  it("reports unconfirmed when email was accepted but its status was not recorded", async () => {
+    mocks.deliverInvitationEmail.mockResolvedValue({
+      status: "sent",
+      emailId: "resend-email-123",
+      recorded: false,
+    });
+
+    const response = await POST(
+      createPostRequest({
+        email: "newmember@example.com",
+        role: "member",
+      }),
+      createContext(organizationId),
+    );
+
+    const body = await response.json();
+
+    expect(response.status).toBe(201);
+    expect(body.success).toBe(true);
+    expect(body.emailDelivery.status).toBe("unconfirmed");
   });
 
   it("does not expose the raw invitation token or token hash", async () => {

@@ -12,7 +12,6 @@ vi.mock("@/lib/db", () => ({
 
 import {
   acceptInvitation,
-  AcceptInvitationError,
 } from "./accept-invitation";
 
 import { hashInvitationToken } from "./token";
