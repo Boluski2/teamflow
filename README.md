@@ -1,6 +1,15 @@
 # Teamflow
 
-Teamflow is a collaborative project and task management application built with Next.js. The current implementation includes Clerk authentication, organization and membership management, role-based organization permissions, and email-based organization invitations. The database schema also defines projects and tasks.
+Teamflow is a collaborative project and task management application built with Next.js. It includes Clerk authentication, organization and membership management, role-based permissions, email invitations, project and task workflows, task comments and activity history, and in-app notifications.
+
+## Features
+
+- Create organizations and manage members with `owner`, `admin`, `member`, and `viewer` roles.
+- Invite people by email, resend invitations, and accept invitations using a verified email address.
+- Create and archive projects, organize tasks and subtasks, assign work, set status, priority, and due dates.
+- Discuss tasks with comments and review task activity history.
+- Receive in-app notifications for task assignments, unassignments, status changes, and priority changes; view, refresh, and mark notifications as read.
+- View organization dashboards and project summaries.
 
 ## Repository layout
 
@@ -96,6 +105,18 @@ All routes require a valid authenticated user unless noted otherwise. The server
 | `POST` | `/api/organizations/:organizationId/invitations` | Create an invitation and attempt to email it; requires the appropriate organization permission. Returns delivery status while keeping the raw token private. |
 | `POST` | `/api/organizations/:organizationId/invitations/:invitationId/resend` | Renew an unaccepted invitation and send a fresh email; rotates its token and seven-day expiry. An active delivery attempt returns a conflict. |
 | `POST` | `/api/invitations/accept` | Accept an invitation using the authenticated user’s verified email. |
+| `GET` | `/api/organizations/:organizationId/members` | List organization members. |
+| `GET` / `POST` | `/api/organizations/:organizationId/projects` | List or create projects. |
+| `GET` / `PATCH` | `/api/organizations/:organizationId/projects/:projectId` | View or update a project. |
+| `GET` / `POST` | `/api/organizations/:organizationId/projects/:projectId/tasks` | List or create project tasks. |
+| `GET` / `PATCH` / `DELETE` | `/api/organizations/:organizationId/projects/:projectId/tasks/:taskId` | View, update, or delete a task. |
+| `GET` / `POST` | `/api/organizations/:organizationId/projects/:projectId/tasks/:taskId/comments` | List or add task comments. |
+| `PATCH` / `DELETE` | `/api/organizations/:organizationId/projects/:projectId/tasks/:taskId/comments/:commentId` | Edit or delete a task comment. |
+| `GET` | `/api/organizations/:organizationId/projects/:projectId/tasks/:taskId/activities` | List task activity history. |
+| `GET` | `/api/organizations/:organizationId/notifications` | List notifications for the current user. |
+| `GET` | `/api/organizations/:organizationId/notifications/unread-count` | Get the current user’s unread notification count. |
+| `PATCH` | `/api/organizations/:organizationId/notifications/:notificationId` | Mark a notification as read. |
+| `PATCH` | `/api/organizations/:organizationId/notifications/read-all` | Mark all notifications as read. |
 
 Organization membership roles are `owner`, `admin`, `member`, and `viewer`. Invitation roles are `admin`, `member`, and `viewer`. Invitation tokens are stored as hashes, expire, and can be accepted only once by a matching email address. Invitation records also track email status, provider ID, delivery time, and attempt metadata. Delivery claims are atomic; a `sending` attempt can be reclaimed after five minutes if it becomes stale.
 
@@ -120,7 +141,7 @@ Integration tests load `.env.local` and use the configured `DATABASE_URL`. Run t
 
 ## Data model and migrations
 
-The Drizzle schema is in `apps/web/src/lib/db/schema.ts`; SQL migrations are in `apps/web/drizzle/`. The schema covers users, organizations, memberships, invitations, projects, and tasks. Foreign keys and indexes enforce organization/project relationships and membership-based task assignment. Task statuses are `todo`, `in_progress`, `in_review`, `done`, and `cancelled`; priorities are `low`, `normal`, `high`, and `urgent`.
+The Drizzle schema is in `apps/web/src/lib/db/schema.ts`; SQL migrations are in `apps/web/drizzle/`. The schema covers users, organizations, memberships, invitations, projects, tasks, task comments, task activity, and notifications. Foreign keys and indexes enforce organization/project relationships and membership-based task assignment. Task statuses are `todo`, `in_progress`, `in_review`, `done`, and `cancelled`; priorities are `low`, `normal`, `high`, and `urgent`.
 
 To change the schema, update the Drizzle definitions and generate a migration from `apps/web`:
 
