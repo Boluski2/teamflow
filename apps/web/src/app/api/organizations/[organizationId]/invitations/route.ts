@@ -96,33 +96,73 @@ export async function POST(
     });
 
     // 8. Return safe invitation and delivery information.
-    const emailDeliveryStatus =
-      delivery.status === "sent"
-        ? delivery.recorded
-          ? "sent"
-          : "unconfirmed"
-        : delivery.status;
+    // const emailDeliveryStatus =
+    //   delivery.status === "sent"
+    //     ? delivery.recorded
+    //       ? "sent"
+    //       : "unconfirmed"
+    //     : delivery.status;
 
-    const message =
-      delivery.status === "sent"
-        ? delivery.recorded
-          ? "Invitation created and email sent successfully"
-          : "Invitation created, but email delivery status could not be saved"
-        : delivery.status === "failed"
-          ? "Invitation created, but email delivery failed"
-          : "Invitation created, but email delivery was not started";
+    // const message =
+    //   delivery.status === "sent"
+    //     ? delivery.recorded
+    //       ? "Invitation created and email sent successfully"
+    //       : "Invitation created, but email delivery status could not be saved"
+    //     : delivery.status === "failed"
+    //       ? "Invitation created, but email delivery failed"
+    //       : "Invitation created, but email delivery was not started";
 
-    return NextResponse.json(
-      {
-        success: true,
-        message,
-        invitation: result.invitation,
-        emailDelivery: {
-          status: emailDeliveryStatus,
-        },
-      },
-      { status: 201 },
-    );
+    // return NextResponse.json(
+    //   {
+    //     success: true,
+    //     message,
+    //     invitation: result.invitation,
+    //     emailDelivery: {
+    //       status: emailDeliveryStatus,
+    //     },
+    //   },
+    //   { status: 201 },
+    // 8. Return safe invitation and delivery information.
+const emailDeliveryStatus =
+  delivery.status === "sent"
+    ? delivery.recorded
+      ? "sent"
+      : "unconfirmed"
+    : delivery.status;
+
+const message =
+  delivery.status === "sent"
+    ? delivery.recorded
+      ? "Invitation created and email sent successfully"
+      : "Invitation created, but email delivery status could not be saved"
+    : delivery.status === "failed"
+      ? "Invitation created, but email delivery failed"
+      : "Invitation created, but email delivery was not started";
+
+// 9. Expose an acceptance URL only in development.
+const development =
+  process.env.NODE_ENV === "development"
+    ? {
+        acceptanceUrl: (() => {
+          const url = new URL("/invitations/accept", request.url);
+          url.searchParams.set("token", result.token);
+          return url.toString();
+        })(),
+      }
+    : undefined;
+
+return NextResponse.json(
+  {
+    success: true,
+    message,
+    invitation: result.invitation,
+    emailDelivery: {
+      status: emailDeliveryStatus,
+    },
+    ...(development ? { development } : {}),
+  },
+  { status: 201 },
+);
   } catch (error) {
     if (error instanceof OrganizationAccessError) {
       return NextResponse.json(

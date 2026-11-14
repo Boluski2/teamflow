@@ -36,6 +36,34 @@
       "when": 1794060085382,
       "tag": "0004_swift_romulus",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1794227505950,
+      "tag": "0005_spooky_namora",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1794317460372,
+      "tag": "0006_flowery_nekra",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1794579206679,
+      "tag": "0007_loud_white_queen",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1794609251067,
+      "tag": "0008_woozy_bloodstorm",
+      "breakpoints": true
     }
   ]
 }

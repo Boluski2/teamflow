@@ -156,6 +156,7 @@ describe("Organization permission authorization", () => {
         "members.change_role",
         "projects.create",
         "tasks.assign",
+        "tasks.delete",
       ],
       denied: [],
     },
@@ -166,6 +167,7 @@ describe("Organization permission authorization", () => {
         "members.invite",
         "projects.create",
         "tasks.assign",
+        "tasks.delete",
       ],
       denied: [
         "organization.delete",
@@ -187,6 +189,7 @@ describe("Organization permission authorization", () => {
         "organization.delete",
         "members.invite",
         "members.remove",
+        "tasks.delete",
       ],
     },
     {
@@ -202,6 +205,7 @@ describe("Organization permission authorization", () => {
         "tasks.create",
         "tasks.update",
         "tasks.assign",
+        "tasks.delete",
       ],
     },
   ] as const;

@@ -13,6 +13,7 @@ import {
   uniqueIndex,
   foreignKey,
   check,
+  jsonb,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 
@@ -57,6 +58,34 @@ export const invitationEmailStatusEnum = pgEnum(
   "invitation_email_status",
   ["pending", "sending", "sent", "failed"],
 );
+
+
+export const taskActivityTypeEnum = pgEnum("task_activity_type", [
+  "task_created",
+  "task_updated",
+  "task_status_changed",
+  "task_priority_changed",
+  "task_assigned",
+  "task_unassigned",
+  "task_due_date_changed",
+  "subtask_created",
+  "task_deleted",
+  "comment_created",
+  "comment_updated",
+  "comment_deleted",
+]);
+
+
+export const notificationTypeEnum = pgEnum("notification_type", [
+  "task_assigned",
+  "task_unassigned",
+  "task_comment_created",
+  "task_status_changed",
+  "task_priority_changed",
+  "task_due_soon",
+]);
+
+
 
 // ---------------------------------------------
 // USERS
@@ -257,15 +286,26 @@ export const projects = pgTable(
       withTimezone: true,
     }).notNull().defaultNow(),
   },
-  (table) => [
+   (table) => [
     unique("projects_organization_id_unique").on(
       table.organizationId,
       table.id,
     ),
+
     index("projects_organization_idx").on(table.organizationId),
+
     index("projects_status_idx").on(
       table.organizationId,
       table.status,
+    ),
+
+    check(
+      "projects_dates_valid_check",
+      sql`
+        ${table.startDate} IS NULL
+        OR ${table.dueDate} IS NULL
+        OR ${table.dueDate} >= ${table.startDate}
+      `,
     ),
   ],
 );
@@ -361,5 +401,213 @@ export const tasks = pgTable(
       "tasks_not_own_parent",
       sql`${table.parentTaskId} IS NULL OR ${table.parentTaskId} <> ${table.id}`,
     ),
+  ],
+);
+
+
+
+// ---------------------------------------------
+// TASK COMMENTS
+// ---------------------------------------------
+
+export const taskComments = pgTable(
+  "task_comments",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+
+    organizationId: uuid("organization_id").notNull(),
+
+    projectId: uuid("project_id").notNull(),
+
+    taskId: uuid("task_id").notNull(),
+
+    authorId: uuid("author_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+
+    // Preserves attribution if the author's account is removed.
+    authorName: text("author_name").notNull(),
+
+    content: text("content").notNull(),
+
+    editedAt: timestamp("edited_at", {
+      withTimezone: true,
+    }),
+
+    createdAt: timestamp("created_at", {
+      withTimezone: true,
+    }).notNull().defaultNow(),
+
+    updatedAt: timestamp("updated_at", {
+      withTimezone: true,
+    }).notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [
+        table.organizationId,
+        table.projectId,
+        table.taskId,
+      ],
+      foreignColumns: [
+        tasks.organizationId,
+        tasks.projectId,
+        tasks.id,
+      ],
+      name: "task_comments_task_fk",
+    }).onDelete("cascade"),
+
+    index("task_comments_task_created_idx").on(
+      table.taskId,
+      table.createdAt,
+    ),
+
+    index("task_comments_organization_idx").on(
+      table.organizationId,
+    ),
+
+    check(
+      "task_comments_content_not_empty",
+      sql`length(btrim(${table.content})) > 0`,
+    ),
+  ],
+);
+
+// ---------------------------------------------
+// TASK ACTIVITIES
+// ---------------------------------------------
+
+export const taskActivities = pgTable(
+  "task_activities",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+
+    organizationId: uuid("organization_id")
+      .notNull()
+      .references(() => organizations.id, {
+        onDelete: "cascade",
+      }),
+
+    projectId: uuid("project_id").references(() => projects.id, {
+      onDelete: "set null",
+    }),
+
+    taskId: uuid("task_id").references(() => tasks.id, {
+      onDelete: "set null",
+    }),
+
+    actorId: uuid("actor_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+
+    // Preserves the actor's display name for historical records.
+    actorName: text("actor_name").notNull(),
+
+    type: taskActivityTypeEnum("type").notNull(),
+
+    metadata: jsonb("metadata")
+      .$type<Record<string, unknown>>()
+      .notNull()
+      .default({}),
+
+    createdAt: timestamp("created_at", {
+      withTimezone: true,
+    }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("task_activities_organization_created_idx").on(
+      table.organizationId,
+      table.createdAt,
+    ),
+
+    index("task_activities_task_created_idx").on(
+      table.taskId,
+      table.createdAt,
+    ),
+
+    index("task_activities_actor_idx").on(table.actorId),
+  ],
+);
+
+
+
+// ---------------------------------------------
+// NOTIFICATIONS
+// ---------------------------------------------
+
+export const notifications = pgTable(
+  "notifications",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+
+    organizationId: uuid("organization_id")
+      .notNull()
+      .references(() => organizations.id, {
+        onDelete: "cascade",
+      }),
+
+    recipientId: uuid("recipient_id").notNull(),
+
+    actorId: uuid("actor_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+
+    projectId: uuid("project_id").references(() => projects.id, {
+      onDelete: "set null",
+    }),
+
+    taskId: uuid("task_id").references(() => tasks.id, {
+      onDelete: "set null",
+    }),
+
+    type: notificationTypeEnum("type").notNull(),
+
+    title: text("title").notNull(),
+
+    message: text("message").notNull(),
+
+    metadata: jsonb("metadata")
+      .$type<Record<string, unknown>>()
+      .notNull()
+      .default({}),
+
+    readAt: timestamp("read_at", {
+      withTimezone: true,
+    }),
+
+    dedupeKey: text("dedupe_key"),
+
+    createdAt: timestamp("created_at", {
+      withTimezone: true,
+    }).notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.organizationId, table.recipientId],
+      foreignColumns: [
+        memberships.organizationId,
+        memberships.userId,
+      ],
+      name: "notifications_recipient_membership_fk",
+    }).onDelete("cascade"),
+
+    uniqueIndex("notifications_dedupe_key_unique")
+  .on(table.dedupeKey)
+  .where(sql`${table.dedupeKey} IS NOT NULL`),
+
+    index("notifications_recipient_created_idx").on(
+      table.recipientId,
+      table.createdAt,
+    ),
+
+    index("notifications_organization_idx").on(
+      table.organizationId,
+    ),
+
+    index("notifications_task_idx").on(table.taskId),
+
+    index("notifications_unread_idx")
+      .on(table.recipientId, table.createdAt)
+      .where(sql`${table.readAt} IS NULL`),
   ],
 );

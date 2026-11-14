@@ -9,6 +9,7 @@ Teamflow is a collaborative project and task management application built with N
 - Create and archive projects, organize tasks and subtasks, assign work, set status, priority, and due dates.
 - Discuss tasks with comments and review task activity history.
 - Receive in-app notifications for task assignments, unassignments, status changes, and priority changes; view, refresh, and mark notifications as read.
+- Receive due-soon reminders for assigned, incomplete tasks due within the next 24 hours. A scheduled cron request creates each reminder once per task due date.
 - View organization dashboards and project summaries.
 
 ## Repository layout
@@ -72,9 +73,10 @@ Teamflow is a collaborative project and task management application built with N
    RESEND_API_KEY=re_...
    RESEND_FROM_EMAIL=TeamFlow <invitations@example.com>
    APP_URL=http://localhost:3000
+   CRON_SECRET=replace-with-a-long-random-secret
    ```
 
-   The invitation API sends email through Resend. If delivery fails because configuration or the provider is unavailable, the invitation is still created and the API response reports the delivery status.
+   The invitation API sends email through Resend. If delivery fails because configuration or the provider is unavailable, the invitation is still created and the API response reports the delivery status. `CRON_SECRET` protects the due-soon notification endpoint; configure the same value in the scheduler and send it as a bearer token.
 
 5. Apply the checked-in migrations:
 
@@ -117,6 +119,7 @@ All routes require a valid authenticated user unless noted otherwise. The server
 | `GET` | `/api/organizations/:organizationId/notifications/unread-count` | Get the current user’s unread notification count. |
 | `PATCH` | `/api/organizations/:organizationId/notifications/:notificationId` | Mark a notification as read. |
 | `PATCH` | `/api/organizations/:organizationId/notifications/read-all` | Mark all notifications as read. |
+| `GET` | `/api/cron/due-soon` | Create notifications for assigned, incomplete tasks due within the next 24 hours. Requires `Authorization: Bearer <CRON_SECRET>`; call from a scheduled job. |
 
 Organization membership roles are `owner`, `admin`, `member`, and `viewer`. Invitation roles are `admin`, `member`, and `viewer`. Invitation tokens are stored as hashes, expire, and can be accepted only once by a matching email address. Invitation records also track email status, provider ID, delivery time, and attempt metadata. Delivery claims are atomic; a `sending` attempt can be reclaimed after five minutes if it becomes stale.
 

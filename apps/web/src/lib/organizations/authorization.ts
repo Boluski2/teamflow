@@ -21,7 +21,10 @@ export type OrganizationRole =
   | "tasks.view"
   | "tasks.create"
   | "tasks.update"
-  | "tasks.assign";
+  | "tasks.assign"
+  | "projects.update"
+  | "tasks.delete"
+  | "projects.archive";
 
 const rolePermissions: Record<
   OrganizationRole,
@@ -41,6 +44,9 @@ const rolePermissions: Record<
     "tasks.create",
     "tasks.update",
     "tasks.assign",
+    "projects.update",
+    "tasks.delete",
+    "projects.archive",
   ],
 
   admin: [
@@ -54,6 +60,9 @@ const rolePermissions: Record<
     "tasks.create",
     "tasks.update",
     "tasks.assign",
+    "projects.update",
+    "tasks.delete",
+    "projects.archive",
   ],
 
   member: [
