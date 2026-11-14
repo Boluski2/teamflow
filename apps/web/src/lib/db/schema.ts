@@ -85,6 +85,14 @@ export const notificationTypeEnum = pgEnum("notification_type", [
   "task_due_soon",
 ]);
 
+export const emailOutboxStatusEnum = pgEnum("email_outbox_status", [
+  "pending",
+  "processing",
+  "sent",
+  "failed",
+  "cancelled",
+]);
+
 
 
 // ---------------------------------------------
@@ -113,6 +121,35 @@ export const users = pgTable("users", {
     withTimezone: true,
   }).notNull().defaultNow(),
 });
+
+export const userNotificationPreferences = pgTable(
+  "user_notification_preferences",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+
+    userId: uuid("user_id")
+      .notNull()
+      .unique()
+      .references(() => users.id, { onDelete: "cascade" }),
+
+    emailEnabled: boolean("email_enabled")
+      .notNull()
+      .default(false),
+
+    createdAt: timestamp("created_at", {
+      withTimezone: true,
+    })
+      .notNull()
+      .defaultNow(),
+
+    updatedAt: timestamp("updated_at", {
+      withTimezone: true,
+    })
+      .notNull()
+      .defaultNow(),
+  },
+);
+
 
 // ---------------------------------------------
 // ORGANIZATIONS
@@ -609,5 +646,82 @@ export const notifications = pgTable(
     index("notifications_unread_idx")
       .on(table.recipientId, table.createdAt)
       .where(sql`${table.readAt} IS NULL`),
+  ],
+);
+
+// ---------------------------------------------
+// EMAIL OUTBOX
+// ---------------------------------------------
+
+export const emailOutbox = pgTable(
+  "email_outbox",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+
+    notificationId: uuid("notification_id")
+      .notNull()
+      .unique()
+      .references(() => notifications.id, {
+        onDelete: "cascade",
+      }),
+
+    template: text("template").notNull(),
+
+    payload: jsonb("payload")
+      .$type<Record<string, unknown>>()
+      .notNull()
+      .default({}),
+
+    status: emailOutboxStatusEnum("status")
+      .notNull()
+      .default("pending"),
+
+    attempts: integer("attempts").notNull().default(0),
+
+    nextAttemptAt: timestamp("next_attempt_at", {
+      withTimezone: true,
+    })
+      .notNull()
+      .defaultNow(),
+
+    leaseExpiresAt: timestamp("lease_expires_at", {
+      withTimezone: true,
+    }),
+
+    providerMessageId: text("provider_message_id"),
+
+    lastError: text("last_error"),
+
+    createdAt: timestamp("created_at", {
+      withTimezone: true,
+    })
+      .notNull()
+      .defaultNow(),
+
+    updatedAt: timestamp("updated_at", {
+      withTimezone: true,
+    })
+      .notNull()
+      .defaultNow(),
+
+    sentAt: timestamp("sent_at", {
+      withTimezone: true,
+    }),
+  },
+  (table) => [
+    index("email_outbox_pending_idx").on(
+      table.status,
+      table.nextAttemptAt,
+    ),
+
+    index("email_outbox_lease_idx").on(
+      table.status,
+      table.leaseExpiresAt,
+    ),
+
+    check(
+      "email_outbox_attempts_nonnegative",
+      sql`${table.attempts} >= 0`,
+    ),
   ],
 );

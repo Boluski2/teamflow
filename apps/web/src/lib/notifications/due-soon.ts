@@ -11,6 +11,7 @@ import {
 } from "drizzle-orm";
 
 import { db } from "@/lib/db";
+import { enqueueNotificationEmail } from "@/lib/email/outbox";
 import { notifications, projects, tasks } from "@/lib/db/schema";
 
 type ProcessDueSoonNotificationsOptions = {
@@ -124,13 +125,41 @@ export async function processDueSoonNotifications(
     };
   });
 
-  const createdNotifications = await db
-    .insert(notifications)
-    .values(notificationValues)
-    .onConflictDoNothing()
-    .returning({
-      id: notifications.id,
-    });
+  const createdNotifications = await db.transaction(async (tx) => {
+    const created = await tx
+      .insert(notifications)
+      .values(notificationValues)
+      .onConflictDoNothing()
+      .returning({
+        id: notifications.id,
+        recipientId: notifications.recipientId,
+        taskId: notifications.taskId,
+      });
+
+    for (const notification of created) {
+      const task = eligibleTasks.find(
+        (item) =>
+          item.id === notification.taskId &&
+          item.assigneeId === notification.recipientId,
+      );
+
+      if (!task) continue;
+
+      await enqueueNotificationEmail(tx, {
+        notificationId: notification.id,
+        recipientId: notification.recipientId,
+        template: "task_due_soon",
+        payload: {
+          taskTitle: task.title,
+          projectName: task.projectName,
+          dueDate: task.dueDate.toISOString(),
+          reminderWindowHours: windowHours,
+        },
+      });
+    }
+
+    return created;
+  });
 
   return {
     scannedTasks: eligibleTasks.length,

@@ -21,6 +21,7 @@ import {
   createTaskSchema,
   updateTaskSchema,
 } from "./schema";
+import { enqueueNotificationEmail } from "@/lib/email/outbox";
 
 type CreateTaskInput = z.infer<typeof createTaskSchema>;
 type UpdateTaskInput = z.infer<typeof updateTaskSchema>;
@@ -203,23 +204,39 @@ export async function createTask(
       },
     });
 
-    if (task.assigneeId && task.assigneeId !== userId) {
-      await tx.insert(notifications).values({
-        organizationId: organization.id,
-        recipientId: task.assigneeId,
-        actorId: userId,
-        projectId,
-        taskId: task.id,
-        type: "task_assigned",
-        title: "Task assigned to you",
-        message: `${actor.name ?? "A team member"} assigned "${task.title}" to you.`,
-        metadata: {
-          taskTitle: task.title,
-          taskStatus: task.status,
-          taskPriority: task.priority,
-        },
-      });
-    }
+if (task.assigneeId && task.assigneeId !== userId) {
+  const [notification] = await tx
+    .insert(notifications)
+    .values({
+      organizationId: organization.id,
+      recipientId: task.assigneeId,
+      actorId: userId,
+      projectId,
+      taskId: task.id,
+      type: "task_assigned",
+      title: "Task assigned to you",
+      message: `${actor.name ?? "A team member"} assigned "${task.title}" to you.`,
+      metadata: {
+        taskTitle: task.title,
+        taskStatus: task.status,
+        taskPriority: task.priority,
+      },
+    })
+    .returning({
+      id: notifications.id,
+    });
+
+  if (notification) {
+    await enqueueNotificationEmail(tx, {
+      notificationId: notification.id,
+      recipientId: task.assigneeId,
+      template: "task_assigned",
+      payload: {
+        taskTitle: task.title,
+      },
+    });
+  }
+}
 
     return task;
   });
@@ -545,19 +562,31 @@ export async function updateTask(
       input.assigneeId !== existingTask.assigneeId &&
       input.assigneeId !== userId
     ) {
-      await tx.insert(notifications).values({
-        organizationId: organization.id,
-        recipientId: input.assigneeId,
-        actorId: userId,
-        projectId,
-        taskId: updatedTask.id,
-        type: "task_assigned",
-        title: "Task assigned to you",
-        message: `${actorName ?? "A team member"} assigned "${updatedTask.title}" to you.`,
-        metadata: {
-          taskTitle: updatedTask.title,
-        },
-      });
+      const [notification] = await tx
+        .insert(notifications)
+        .values({
+          organizationId: organization.id,
+          recipientId: input.assigneeId,
+          actorId: userId,
+          projectId,
+          taskId: updatedTask.id,
+          type: "task_assigned",
+          title: "Task assigned to you",
+          message: `${actorName ?? "A team member"} assigned "${updatedTask.title}" to you.`,
+          metadata: {
+            taskTitle: updatedTask.title,
+          },
+        })
+        .returning({ id: notifications.id });
+
+      if (notification) {
+        await enqueueNotificationEmail(tx, {
+          notificationId: notification.id,
+          recipientId: input.assigneeId,
+          template: "task_assigned",
+          payload: { taskTitle: updatedTask.title },
+        });
+      }
     }
 
     // Notify the previous assignee.
@@ -567,19 +596,31 @@ export async function updateTask(
       input.assigneeId !== existingTask.assigneeId &&
       existingTask.assigneeId !== userId
     ) {
-      await tx.insert(notifications).values({
-        organizationId: organization.id,
-        recipientId: existingTask.assigneeId,
-        actorId: userId,
-        projectId,
-        taskId: updatedTask.id,
-        type: "task_unassigned",
-        title: "Task unassigned",
-        message: `${actorName ?? "A team member"} unassigned you from "${updatedTask.title}".`,
-        metadata: {
-          taskTitle: updatedTask.title,
-        },
-      });
+      const [notification] = await tx
+        .insert(notifications)
+        .values({
+          organizationId: organization.id,
+          recipientId: existingTask.assigneeId,
+          actorId: userId,
+          projectId,
+          taskId: updatedTask.id,
+          type: "task_unassigned",
+          title: "Task unassigned",
+          message: `${actorName ?? "A team member"} unassigned you from "${updatedTask.title}".`,
+          metadata: {
+            taskTitle: updatedTask.title,
+          },
+        })
+        .returning({ id: notifications.id });
+
+      if (notification) {
+        await enqueueNotificationEmail(tx, {
+          notificationId: notification.id,
+          recipientId: existingTask.assigneeId,
+          template: "task_unassigned",
+          payload: { taskTitle: updatedTask.title },
+        });
+      }
     }
 
     // Notify the current assignee about a status change.
@@ -589,21 +630,37 @@ export async function updateTask(
       updatedTask.assigneeId &&
       updatedTask.assigneeId !== userId
     ) {
-      await tx.insert(notifications).values({
-        organizationId: organization.id,
-        recipientId: updatedTask.assigneeId,
-        actorId: userId,
-        projectId,
-        taskId: updatedTask.id,
-        type: "task_status_changed",
-        title: "Task status changed",
-        message: `${actorName ?? "A team member"} changed "${updatedTask.title}" status to ${updatedTask.status.replaceAll("_", " ")}.`,
-        metadata: {
-          taskTitle: updatedTask.title,
-          previousStatus: existingTask.status,
-          newStatus: updatedTask.status,
-        },
-      });
+      const [notification] = await tx
+        .insert(notifications)
+        .values({
+          organizationId: organization.id,
+          recipientId: updatedTask.assigneeId,
+          actorId: userId,
+          projectId,
+          taskId: updatedTask.id,
+          type: "task_status_changed",
+          title: "Task status changed",
+          message: `${actorName ?? "A team member"} changed "${updatedTask.title}" status to ${updatedTask.status.replaceAll("_", " ")}.`,
+          metadata: {
+            taskTitle: updatedTask.title,
+            previousStatus: existingTask.status,
+            newStatus: updatedTask.status,
+          },
+        })
+        .returning({ id: notifications.id });
+
+      if (notification) {
+        await enqueueNotificationEmail(tx, {
+          notificationId: notification.id,
+          recipientId: updatedTask.assigneeId,
+          template: "task_status_changed",
+          payload: {
+            taskTitle: updatedTask.title,
+            previousStatus: existingTask.status,
+            newStatus: updatedTask.status,
+          },
+        });
+      }
     }
 
     // Notify the current assignee about a priority change.
@@ -613,21 +670,37 @@ export async function updateTask(
       updatedTask.assigneeId &&
       updatedTask.assigneeId !== userId
     ) {
-      await tx.insert(notifications).values({
-        organizationId: organization.id,
-        recipientId: updatedTask.assigneeId,
-        actorId: userId,
-        projectId,
-        taskId: updatedTask.id,
-        type: "task_priority_changed",
-        title: "Task priority changed",
-        message: `${actorName ?? "A team member"} changed "${updatedTask.title}" priority to ${updatedTask.priority}.`,
-        metadata: {
-          taskTitle: updatedTask.title,
-          previousPriority: existingTask.priority,
-          newPriority: updatedTask.priority,
-        },
-      });
+      const [notification] = await tx
+        .insert(notifications)
+        .values({
+          organizationId: organization.id,
+          recipientId: updatedTask.assigneeId,
+          actorId: userId,
+          projectId,
+          taskId: updatedTask.id,
+          type: "task_priority_changed",
+          title: "Task priority changed",
+          message: `${actorName ?? "A team member"} changed "${updatedTask.title}" priority to ${updatedTask.priority}.`,
+          metadata: {
+            taskTitle: updatedTask.title,
+            previousPriority: existingTask.priority,
+            newPriority: updatedTask.priority,
+          },
+        })
+        .returning({ id: notifications.id });
+
+      if (notification) {
+        await enqueueNotificationEmail(tx, {
+          notificationId: notification.id,
+          recipientId: updatedTask.assigneeId,
+          template: "task_priority_changed",
+          payload: {
+            taskTitle: updatedTask.title,
+            previousPriority: existingTask.priority,
+            newPriority: updatedTask.priority,
+          },
+        });
+      }
     }
 
     return updatedTask;

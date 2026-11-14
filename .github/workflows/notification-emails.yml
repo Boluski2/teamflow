@@ -1,0 +1,59 @@
+
+name: TeamFlow Notification Emails
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: notification-emails
+  cancel-in-progress: false
+
+jobs:
+  process-notification-emails:
+    name: Process notification emails
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Validate configuration
+        env:
+          APP_URL: ${{ secrets.APP_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "$APP_URL" ]; then
+            echo "::error::APP_URL secret is missing"
+            exit 1
+          fi
+
+          if [ -z "$CRON_SECRET" ]; then
+            echo "::error::CRON_SECRET secret is missing"
+            exit 1
+          fi
+
+      - name: Trigger notification email processor
+        env:
+          APP_URL: ${{ secrets.APP_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          set -euo pipefail
+
+          BASE_URL="${APP_URL%/}"
+
+          curl \
+            --fail-with-body \
+            --silent \
+            --show-error \
+            --retry 3 \
+            --retry-delay 10 \
+            --retry-all-errors \
+            --max-time 240 \
+            --request GET \
+            --header "Authorization: Bearer ${CRON_SECRET}" \
+            "${BASE_URL}/api/cron/notification-emails"

@@ -23,6 +23,7 @@ const mocks = vi.hoisted(() => ({
   txDeleteWhere: vi.fn(),
   txDeleteReturning: vi.fn(),
 
+  enqueueNotificationEmail: vi.fn(),
   requireOrganizationMembership: vi.fn(),
 }));
 
@@ -48,6 +49,10 @@ vi.mock("@/lib/organizations/authorization", () => ({
       this.code = code;
     }
   },
+}));
+
+vi.mock("@/lib/email/outbox", () => ({
+  enqueueNotificationEmail: mocks.enqueueNotificationEmail,
 }));
 
 import {

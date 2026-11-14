@@ -25,6 +25,7 @@ const mocks = vi.hoisted(() => ({
   txDeleteWhere: vi.fn(),
   txDeleteReturning: vi.fn(),
 
+  enqueueNotificationEmail: vi.fn(),
   requireOrganizationPermission: vi.fn(),
 }));
 
@@ -42,6 +43,10 @@ vi.mock("@/lib/db", () => ({
 
 vi.mock("@/lib/organizations/authorization", () => ({
   requireOrganizationPermission: mocks.requireOrganizationPermission,
+}));
+
+vi.mock("@/lib/email/outbox", () => ({
+  enqueueNotificationEmail: mocks.enqueueNotificationEmail,
 }));
 
 import {

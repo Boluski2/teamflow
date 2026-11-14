@@ -9,6 +9,7 @@ Teamflow is a collaborative project and task management application built with N
 - Create and archive projects, organize tasks and subtasks, assign work, set status, priority, and due dates.
 - Discuss tasks with comments and review task activity history.
 - Receive in-app notifications for task assignments, unassignments, status changes, and priority changes; view, refresh, and mark notifications as read.
+- Receive notification emails through a queued, retryable delivery worker, with per-user email preferences.
 - Receive due-soon reminders for assigned, incomplete tasks due within the next 24 hours. A scheduled cron request creates each reminder once per task due date.
 - View organization dashboards and project summaries.
 
@@ -67,7 +68,7 @@ Teamflow is a collaborative project and task management application built with N
 
    Keep real credentials private. Environment files are ignored by Git. `DATABASE_URL` is required for database access and migrations.
 
-4. To configure the invitation email sender, also add the Resend API key, a verified sender address, and the public application URL:
+4. To configure invitation and notification email delivery, also add the Resend API key, a verified sender address, and the public application URL:
 
    ```dotenv
    RESEND_API_KEY=re_...
@@ -76,7 +77,7 @@ Teamflow is a collaborative project and task management application built with N
    CRON_SECRET=replace-with-a-long-random-secret
    ```
 
-   The invitation API sends email through Resend. If delivery fails because configuration or the provider is unavailable, the invitation is still created and the API response reports the delivery status. `CRON_SECRET` protects the due-soon notification endpoint; configure the same value in the scheduler and send it as a bearer token.
+   Invitation and notification emails are sent through Resend. If invitation delivery fails because configuration or the provider is unavailable, the invitation is still created and the API response reports the delivery status. `CRON_SECRET` protects both cron endpoints; configure the same value in the scheduler and send it as a bearer token.
 
 5. Apply the checked-in migrations:
 
@@ -119,7 +120,9 @@ All routes require a valid authenticated user unless noted otherwise. The server
 | `GET` | `/api/organizations/:organizationId/notifications/unread-count` | Get the current user’s unread notification count. |
 | `PATCH` | `/api/organizations/:organizationId/notifications/:notificationId` | Mark a notification as read. |
 | `PATCH` | `/api/organizations/:organizationId/notifications/read-all` | Mark all notifications as read. |
+| `GET` / `PATCH` | `/api/me/notification-preferences` | Read or update the signed-in user's notification email preference. Disabling email cancels pending and processing email jobs. |
 | `GET` | `/api/cron/due-soon` | Create notifications for assigned, incomplete tasks due within the next 24 hours. Requires `Authorization: Bearer <CRON_SECRET>`; call from a scheduled job. |
+| `GET` | `/api/cron/notification-emails` | Process queued notification email jobs. Requires `Authorization: Bearer <CRON_SECRET>`; call from a scheduled job. |
 
 Organization membership roles are `owner`, `admin`, `member`, and `viewer`. Invitation roles are `admin`, `member`, and `viewer`. Invitation tokens are stored as hashes, expire, and can be accepted only once by a matching email address. Invitation records also track email status, provider ID, delivery time, and attempt metadata. Delivery claims are atomic; a `sending` attempt can be reclaimed after five minutes if it becomes stale.
 
@@ -159,6 +162,8 @@ Review generated SQL before applying schema changes to a shared or production da
 The application uses Clerk authentication. The sign-in and sign-up pages are available at `/sign-in` and `/sign-up`. Configure the local Clerk keys in `.env.local` and set the same values as environment variables in the deployment platform. Deploy the Next.js app from `apps/web`, and apply the checked-in Drizzle migrations to the target PostgreSQL database as part of deployment preparation.
 
 Due-soon reminders run through the GitHub Actions workflow at `.github/workflows/due-soon-notifications.yml`. It calls `/api/cron/due-soon` hourly at 17 minutes past the hour (UTC); you can also run it manually from the Actions tab. Add `APP_URL` (the deployed app's base URL) and `CRON_SECRET` as repository Actions secrets under **Settings → Secrets and variables → Actions**. The workflow sends `CRON_SECRET` as a bearer token to authenticate the request.
+
+Notification email delivery runs through `.github/workflows/notification-emails.yml` every five minutes (UTC), and can also be started manually from the Actions tab. It calls `/api/cron/notification-emails` to process queued email jobs. Configure the same `APP_URL` and `CRON_SECRET` repository Actions secrets for both workflows. The deployed app also needs `RESEND_API_KEY`, `RESEND_FROM_EMAIL`, and `APP_URL` configured in its environment.
 
 ## Contributing
 

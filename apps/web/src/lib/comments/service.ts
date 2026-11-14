@@ -23,6 +23,8 @@ import type {
   UpdateCommentInput,
 } from "./schema";
 
+import { enqueueNotificationEmail } from "@/lib/email/outbox";
+
 async function getTaskContext(
   organizationId: string,
   projectId: string,
@@ -187,21 +189,38 @@ export async function createTaskComment(
     // Notify the task assignee when another member comments.
     // Do not notify the commenter when they are the assignee.
     if (task.assigneeId && task.assigneeId !== userId) {
-      await tx.insert(notifications).values({
-        organizationId: organization.id,
-        recipientId: task.assigneeId,
-        actorId: userId,
-        projectId,
-        taskId,
-        type: "task_comment_created",
-        title: "New comment on your task",
-        message: `${actorName ?? "A team member"} commented on "${task.title}".`,
-        metadata: {
-          commentId: comment.id,
-          taskTitle: task.title,
-          contentPreview: preview(comment.content),
-        },
-      });
+      const [notification] = await tx
+        .insert(notifications)
+        .values({
+          organizationId: organization.id,
+          recipientId: task.assigneeId,
+          actorId: userId,
+          projectId,
+          taskId,
+          type: "task_comment_created",
+          title: "New comment on your task",
+          message: `${actorName ?? "A team member"} commented on "${task.title}".`,
+          metadata: {
+            commentId: comment.id,
+            taskTitle: task.title,
+            contentPreview: preview(comment.content),
+          },
+        })
+        .returning({
+          id: notifications.id,
+        });
+
+      if (notification) {
+        await enqueueNotificationEmail(tx, {
+          notificationId: notification.id,
+          recipientId: task.assigneeId,
+          template: "task_comment_created",
+          payload: {
+            taskTitle: task.title,
+            contentPreview: preview(comment.content),
+          },
+        });
+      }
     }
 
     return comment;

@@ -5,16 +5,22 @@ const {
   mockSelectFrom,
   mockSelectInnerJoin,
   mockSelectWhere,
-  mockInsertValues,
+  mockTransaction,
+  mockInsert,
+  mockValues,
   mockOnConflictDoNothing,
-  mockInsertReturning,
+  mockReturning,
+  mockEnqueueNotificationEmail,
 } = vi.hoisted(() => ({
   mockSelectFrom: vi.fn(),
   mockSelectInnerJoin: vi.fn(),
   mockSelectWhere: vi.fn(),
-  mockInsertValues: vi.fn(),
+  mockTransaction: vi.fn(),
+  mockInsert: vi.fn(),
+  mockValues: vi.fn(),
   mockOnConflictDoNothing: vi.fn(),
-  mockInsertReturning: vi.fn(),
+  mockReturning: vi.fn(),
+  mockEnqueueNotificationEmail: vi.fn(),
 }));
 
 vi.mock("server-only", () => ({}));
@@ -24,10 +30,35 @@ vi.mock("@/lib/db", () => ({
     select: vi.fn(() => ({
       from: mockSelectFrom,
     })),
-    insert: vi.fn(() => ({
-      values: mockInsertValues,
-    })),
+    transaction: mockTransaction,
   },
+}));
+
+vi.mock("@/lib/db/schema", () => ({
+  notifications: {
+    id: "notifications.id",
+    recipientId: "notifications.recipient_id",
+    taskId: "notifications.task_id",
+  },
+  projects: {
+    id: "projects.id",
+    organizationId: "projects.organization_id",
+    status: "projects.status",
+    name: "projects.name",
+  },
+  tasks: {
+    id: "tasks.id",
+    organizationId: "tasks.organization_id",
+    projectId: "tasks.project_id",
+    title: "tasks.title",
+    assigneeId: "tasks.assignee_id",
+    dueDate: "tasks.due_date",
+    status: "tasks.status",
+  },
+}));
+
+vi.mock("@/lib/email/outbox", () => ({
+  enqueueNotificationEmail: mockEnqueueNotificationEmail,
 }));
 
 import { processDueSoonNotifications } from "./due-soon";
@@ -44,6 +75,12 @@ const eligibleTask = {
   projectName: "TeamFlow",
 };
 
+const createdNotification = {
+  id: "notification-123",
+  recipientId: "user-123",
+  taskId: "task-123",
+};
+
 describe("Due-soon notification processor", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -58,17 +95,33 @@ describe("Due-soon notification processor", () => {
 
     mockSelectWhere.mockResolvedValue([eligibleTask]);
 
-    mockInsertValues.mockReturnValue({
+    mockTransaction.mockImplementation(
+      async (callback: (tx: unknown) => Promise<unknown>) => {
+        const tx = {
+          insert: mockInsert,
+        };
+
+        return callback(tx);
+      },
+    );
+
+    mockInsert.mockReturnValue({
+      values: mockValues,
+    });
+
+    mockValues.mockReturnValue({
       onConflictDoNothing: mockOnConflictDoNothing,
     });
 
     mockOnConflictDoNothing.mockReturnValue({
-      returning: mockInsertReturning,
+      returning: mockReturning,
     });
 
-    mockInsertReturning.mockResolvedValue([
-      { id: "notification-123" },
-    ]);
+    mockReturning.mockResolvedValue([createdNotification]);
+
+    mockEnqueueNotificationEmail.mockResolvedValue({
+      id: "email-job-123",
+    });
   });
 
   describe("processDueSoonNotifications", () => {
@@ -81,7 +134,7 @@ describe("Due-soon notification processor", () => {
         windowHours: 24,
       });
 
-      expect(mockInsertValues).toHaveBeenCalledWith([
+      expect(mockValues).toHaveBeenCalledWith([
         expect.objectContaining({
           organizationId: "org-123",
           recipientId: "user-123",
@@ -91,12 +144,33 @@ describe("Due-soon notification processor", () => {
           title: "Task due soon",
         }),
       ]);
+
+      expect(mockTransaction).toHaveBeenCalledOnce();
+    });
+
+    it("queues email for a newly created notification", async () => {
+      await processDueSoonNotifications({ now });
+
+      expect(mockEnqueueNotificationEmail).toHaveBeenCalledWith(
+        expect.any(Object),
+        {
+          notificationId: "notification-123",
+          recipientId: "user-123",
+          template: "task_due_soon",
+          payload: {
+            taskTitle: "Complete dashboard",
+            projectName: "TeamFlow",
+            dueDate: "2026-11-13T18:00:00.000Z",
+            reminderWindowHours: 24,
+          },
+        },
+      );
     });
 
     it("uses a 24-hour reminder window by default", async () => {
       await processDueSoonNotifications({ now });
 
-      expect(mockInsertValues).toHaveBeenCalledWith([
+      expect(mockValues).toHaveBeenCalledWith([
         expect.objectContaining({
           message: expect.stringContaining("24 hours"),
           metadata: expect.objectContaining({
@@ -109,7 +183,7 @@ describe("Due-soon notification processor", () => {
     it("creates a deterministic deduplication key", async () => {
       await processDueSoonNotifications({ now });
 
-      expect(mockInsertValues).toHaveBeenCalledWith([
+      expect(mockValues).toHaveBeenCalledWith([
         expect.objectContaining({
           dedupeKey:
             "task_due_soon:task-123:user-123:2026-11-13T18:00:00.000Z",
@@ -121,7 +195,16 @@ describe("Due-soon notification processor", () => {
       await processDueSoonNotifications({ now });
 
       expect(mockOnConflictDoNothing).toHaveBeenCalledOnce();
-      expect(mockInsertReturning).toHaveBeenCalledOnce();
+      expect(mockReturning).toHaveBeenCalledOnce();
+    });
+
+    it("does not queue email when the notification already exists", async () => {
+      mockReturning.mockResolvedValue([]);
+
+      const result = await processDueSoonNotifications({ now });
+
+      expect(result.notificationsCreated).toBe(0);
+      expect(mockEnqueueNotificationEmail).not.toHaveBeenCalled();
     });
 
     it("allows a different deadline to generate a different reminder key", async () => {
@@ -138,7 +221,7 @@ describe("Due-soon notification processor", () => {
 
       await processDueSoonNotifications({ now });
 
-      expect(mockInsertValues).toHaveBeenCalledWith([
+      expect(mockValues).toHaveBeenCalledWith([
         expect.objectContaining({
           dedupeKey:
             "task_due_soon:task-123:user-123:2026-11-14T08:00:00.000Z",
@@ -157,7 +240,8 @@ describe("Due-soon notification processor", () => {
         windowHours: 24,
       });
 
-      expect(mockInsertValues).not.toHaveBeenCalled();
+      expect(mockTransaction).not.toHaveBeenCalled();
+      expect(mockEnqueueNotificationEmail).not.toHaveBeenCalled();
     });
 
     it("supports a custom reminder window", async () => {
@@ -168,7 +252,7 @@ describe("Due-soon notification processor", () => {
 
       expect(result.windowHours).toBe(12);
 
-      expect(mockInsertValues).toHaveBeenCalledWith([
+      expect(mockValues).toHaveBeenCalledWith([
         expect.objectContaining({
           message: expect.stringContaining("12 hours"),
           metadata: expect.objectContaining({
@@ -179,15 +263,20 @@ describe("Due-soon notification processor", () => {
     });
 
     it("returns the number of notifications actually created", async () => {
-      mockInsertReturning.mockResolvedValue([
-        { id: "notification-1" },
-        { id: "notification-2" },
+      mockReturning.mockResolvedValue([
+        createdNotification,
+        {
+          id: "notification-2",
+          recipientId: "user-123",
+          taskId: "task-123",
+        },
       ]);
 
       const result = await processDueSoonNotifications({ now });
 
       expect(result.scannedTasks).toBe(1);
       expect(result.notificationsCreated).toBe(2);
+      expect(mockEnqueueNotificationEmail).toHaveBeenCalledTimes(2);
     });
 
     it("rejects a zero-hour reminder window", async () => {
@@ -235,6 +324,16 @@ describe("Due-soon notification processor", () => {
       ).rejects.toThrow("Invalid processing date");
 
       expect(mockSelectFrom).not.toHaveBeenCalled();
+    });
+
+    it("propagates email enqueue errors so the transaction can roll back", async () => {
+      mockEnqueueNotificationEmail.mockRejectedValue(
+        new Error("Outbox unavailable"),
+      );
+
+      await expect(
+        processDueSoonNotifications({ now }),
+      ).rejects.toThrow("Outbox unavailable");
     });
   });
 });
