@@ -1,0 +1,60 @@
+
+name: TeamFlow Due-Soon Notifications
+
+on:
+  schedule:
+    - cron: "17 * * * *"
+
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: due-soon-notifications
+  cancel-in-progress: false
+
+jobs:
+  process-due-soon-notifications:
+    name: Process due-soon notifications
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Validate configuration
+        env:
+          APP_URL: ${{ secrets.APP_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "$APP_URL" ]; then
+            echo "::error::APP_URL secret is missing"
+            exit 1
+          fi
+
+          if [ -z "$CRON_SECRET" ]; then
+            echo "::error::CRON_SECRET secret is missing"
+            exit 1
+          fi
+
+      - name: Trigger due-soon notification processor
+        env:
+          APP_URL: ${{ secrets.APP_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          set -euo pipefail
+
+          BASE_URL="${APP_URL%/}"
+
+          curl \
+            --fail-with-body \
+            --silent \
+            --show-error \
+            --retry 3 \
+            --retry-delay 10 \
+            --retry-all-errors \
+            --max-time 60 \
+            --request GET \
+            --header "Authorization: Bearer ${CRON_SECRET}" \
+            "${BASE_URL}/api/cron/due-soon"

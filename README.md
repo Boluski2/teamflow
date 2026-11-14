@@ -158,6 +158,8 @@ Review generated SQL before applying schema changes to a shared or production da
 
 The application uses Clerk authentication. The sign-in and sign-up pages are available at `/sign-in` and `/sign-up`. Configure the local Clerk keys in `.env.local` and set the same values as environment variables in the deployment platform. Deploy the Next.js app from `apps/web`, and apply the checked-in Drizzle migrations to the target PostgreSQL database as part of deployment preparation.
 
+Due-soon reminders run through the GitHub Actions workflow at `.github/workflows/due-soon-notifications.yml`. It calls `/api/cron/due-soon` hourly at 17 minutes past the hour (UTC); you can also run it manually from the Actions tab. Add `APP_URL` (the deployed app's base URL) and `CRON_SECRET` as repository Actions secrets under **Settings → Secrets and variables → Actions**. The workflow sends `CRON_SECRET` as a bearer token to authenticate the request.
+
 ## Contributing
 
 1. Create a branch for your change.
