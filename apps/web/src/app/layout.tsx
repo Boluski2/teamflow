@@ -3,8 +3,9 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Team Flow - Task Management",
-  description: "A task management app for teams",
+  title: "TeamFlow — Projects, Tasks & Team Collaboration",
+  description:
+    "Bring your projects, tasks and people into one organised workspace. Plan clearly, collaborate confidently and keep work moving forward with TeamFlow.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

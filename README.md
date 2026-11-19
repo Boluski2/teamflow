@@ -12,6 +12,11 @@ Teamflow is a collaborative project and task management application built with N
 - Receive notification emails through a queued, retryable delivery worker, with per-user email preferences.
 - Receive due-soon reminders for assigned, incomplete tasks due within the next 24 hours. A scheduled cron request creates each reminder once per task due date.
 - View organization dashboards and project summaries.
+- Browse the public TeamFlow pages for product features, workflow, company information, and pricing; the responsive mobile navigation and motion effects respect reduced-motion preferences.
+
+## Public pages
+
+The marketing site is available at `/`, `/features`, `/how-it-works`, `/about`, and `/pricing`. Shared navigation and footer components live in `apps/web/src/components/marketing/`. The pages are statically prerendered; the footer copyright year is populated in the browser so it stays current without making the pages dynamic at build time.
 
 ## Repository layout
 

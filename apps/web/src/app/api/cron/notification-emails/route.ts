@@ -3,8 +3,6 @@ import { NextResponse } from "next/server";
 
 import { processNotificationEmails } from "@/lib/email/process-notification-emails";
 
-export const runtime = "nodejs";
-
 export async function GET(request: Request) {
   const cronSecret = process.env.CRON_SECRET;
 
